@@ -53,7 +53,7 @@ unsafe extern "C" fn _boot_header() -> ! {
     );
 }
 
-const STACK_SIZE: usize = 16384 * 16 * 16; // 16 KiB
+const STACK_SIZE: usize = 512 * 1024; // 512 KiB
 const MAX_HART_NUM: usize = 128;
 
 #[derive(Copy, Clone)]
@@ -155,9 +155,7 @@ extern "C" fn init_main(hartid: usize) -> ! {
     sbi::hart_suspend(sbi::NonRetentive, core_send_ipi as _, unsafe {
         core::ptr::addr_of!(HART_STACK[hartid + 1]) as _
     });
-    loop {
-        core::hint::spin_loop();
-    }
+    unreachable!()
 }
 
 static mut WAIT_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -171,7 +169,6 @@ fn get_time() -> u64 {
     let mut low_time: u64;
     unsafe {
         asm!("csrr {}, {CSR_TIME}", out(reg) low_time, CSR_TIME = const CSR_TIME);
-        //        asm!("csrr {}, {CSR_TIMEH}", out(reg) upper_time, CSR_TIMEH = const CSR_TIMEH);
     }
 
     low_time
@@ -237,14 +234,13 @@ extern "C" fn rust_main(hartid: usize, dtb_pa: usize) -> ! {
     unsafe {
         GLOBAL_MASK = mask;
     }
+    println!("into test");
     for _ in 0..4 {
         unsafe {
             for i in 0..smp {
                 IPI_SENT[i].assume_init_mut().swap(false, Ordering::AcqRel);
                 if i != hartid {
-                    while sbi::hart_get_status(i) != SUSPENDED {
-                        core::hint::spin_loop();
-                    }
+                    while sbi::hart_get_status(i) != SUSPENDED {}
                 }
             }
             WAIT_COUNT.swap((smp - 1) as u64, Ordering::AcqRel);
@@ -252,7 +248,7 @@ extern "C" fn rust_main(hartid: usize, dtb_pa: usize) -> ! {
         println!("send!");
         let start_time = get_time();
         sbi::send_ipi(mask);
-        while unsafe { WAIT_COUNT.load(Ordering::Relaxed) } != 0 {}
+        while unsafe { WAIT_COUNT.load(Ordering::Acquire) } != 0 {}
         let end_time = get_time();
         println!("{} {} {}", start_time, end_time, end_time - start_time);
     }

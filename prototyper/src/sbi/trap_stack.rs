@@ -7,7 +7,7 @@ use fast_trap::FreeTrapStack;
 /// Stack size per hart (hardware thread) in bytes.
 const LEN_STACK_PER_HART: usize = 16 * 1024;
 /// Maximum number of supported harts.
-pub const NUM_HART_MAX: usize = 8;
+pub const NUM_HART_MAX: usize = 32;
 
 /// Root stack array for all harts, placed in uninitialized BSS section.
 #[link_section = ".bss.uninit"]
